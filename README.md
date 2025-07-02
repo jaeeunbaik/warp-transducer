@@ -47,7 +47,7 @@ warp-transducer has been tested on Ubuntu 16.04 and CentOS 7. Windows is not sup
 
 First get the code:
 ```bash
-git clone https://github.com/HawkAaron/warp-transducer
+git clone https://github.com/jaeeunbaik/warp-transducer.git
 cd warp-transducer
 ```
 create a build directory:
