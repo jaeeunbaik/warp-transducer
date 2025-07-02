@@ -1,5 +1,6 @@
 # warp-transducer
 A fast parallel implementation of RNN Transducer (Graves 2013 joint network), on both CPU and GPU.
+RTX 4090 에서 돌아갈 수 있도록 수정함.
 
 [GPU implementation is now available for Graves2012 add network.](https://github.com/HawkAaron/warp-transducer/tree/add_network)
 
