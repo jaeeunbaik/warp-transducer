@@ -127,32 +127,14 @@ GpuRNNT<ProbT>::compute_cost_and_score(const ProbT* const acts,
     compute_alphas_kernel<ProbT><<<minibatch_, maxU_, 0, stream_>>>(acts, denom, alphas, llForward, 
         input_lengths, label_lengths, labels, minibatch_, maxT_, maxU_, alphabet_size_, blank_);
 #endif
+    // 커널 런치 후 에러 체크
+    cudaError_t err = cudaGetLastError();
+    cudaStreamSynchronize(stream_);
+    err = cudaGetLastError();
 #if defined(DEBUG_TIME)
     cudaStreamSynchronize(stream_);
     end = std::chrono::high_resolution_clock::now();
     elapsed = end - start;
-    std::cout << "DEBUG: compute_alphas_kernel " << elapsed.count() * 1000 << " ms\n";
-#endif
-#if defined(DEBUG_KERNEL)
-    ProbT* cpu_alphas = new ProbT[minibatch_ * maxT_ * maxU_];
-    int* cpu_xlen = new int[minibatch_];
-    int* cpu_ylen = new int[minibatch_];
-    cudaMemcpy(cpu_alphas, alphas, sizeof(ProbT) * minibatch_ * maxT_ * maxU_, cudaMemcpyDeviceToHost);
-    cudaMemcpy(cpu_xlen, input_lengths, sizeof(int) * minibatch_, cudaMemcpyDeviceToHost);
-    cudaMemcpy(cpu_ylen, label_lengths, sizeof(int) * minibatch_, cudaMemcpyDeviceToHost);
-    printf("gpu alphas\n");
-    for (int b = 0; b < minibatch_; b++) {
-        int T = cpu_xlen[b];
-        int U = cpu_ylen[b] + 1;
-        printf("B %d, T %d, U %d\n", b, T, U);
-        for (int t = 0; t < T; t++) {
-            for (int u = 0; u < U; u++) {
-                printf("%.2f ", cpu_alphas[(b*maxT_+t)*maxU_+u]);
-            }
-            printf("\n");
-        }
-        printf("\n");
-    }
 #endif
     if (training) {
         // betas
@@ -172,23 +154,6 @@ GpuRNNT<ProbT>::compute_cost_and_score(const ProbT* const acts,
         elapsed = end - start;
         std::cout << "DEBUG: compute_betas_kernel " << elapsed.count() * 1000 << " ms\n";
 #endif
-#if defined(DEBUG_KERNEL)
-    ProbT* cpu_betas = new ProbT[minibatch_ * maxT_ * maxU_];
-    cudaMemcpy(cpu_betas, betas, sizeof(ProbT) * minibatch_ * maxT_ * maxU_, cudaMemcpyDeviceToHost);
-    printf("gpu betas\n");
-    for (int b = 0; b < minibatch_; b++) {
-        int T = cpu_xlen[b];
-        int U = cpu_ylen[b] + 1;
-        printf("B %d, T %d, U %d\n", b, T, U);
-        for (int t = 0; t < T; t++) {
-            for (int u = 0; u < U; u++) {
-                printf("%.2f ", cpu_betas[(b*maxT_+t)*maxU_+u]);
-            }
-            printf("\n");
-        }
-        printf("\n");
-    }
-#endif
 
         // gradient
 #if defined(DEBUG_TIME)
@@ -198,6 +163,18 @@ GpuRNNT<ProbT>::compute_cost_and_score(const ProbT* const acts,
         compute_grad_kernel<128, ProbT><<<minibatch_ * maxT_ * maxU_, 128, 0, stream_>>>(grads, 
             acts, denom, alphas, betas, llForward, input_lengths, label_lengths, labels, 
             minibatch_, maxT_, maxU_, alphabet_size_, blank_);
+        // 커널 런치 후 에러 체크
+        err = cudaGetLastError();
+        if (err != cudaSuccess) {
+            printf("[CUDA ERROR] compute_grad_kernel launch: %s\n", cudaGetErrorString(err));
+            fflush(stdout);
+        }
+        cudaStreamSynchronize(stream_);
+        err = cudaGetLastError();
+        if (err != cudaSuccess) {
+            printf("[CUDA ERROR] compute_grad_kernel execution: %s\n", cudaGetErrorString(err));
+            fflush(stdout);
+        }
 #if defined(DEBUG_TIME)
         cudaStreamSynchronize(stream_);
         end = std::chrono::high_resolution_clock::now();

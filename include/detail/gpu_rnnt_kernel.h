@@ -11,9 +11,10 @@ inline __device__ T logp(const T* const denom, const T* const acts, const int ma
 template<typename Tp>
 __global__ void compute_alphas_kernel(const Tp* const acts, const Tp* const denom, Tp* alphas, Tp* llForward, const int* const xlen, const int* const ylen, 
     const int* const mlabels, const int minibatch, const int maxT, const int maxU, const int alphabet_size, const int blank_) {
-    // launch B blocks, each block has U threads
     int b = blockIdx.x; // batch
     int u = threadIdx.x; // label id, u
+    if (b >= minibatch || u >= maxU) return;
+    if (b < 0 || b >= minibatch || u < 0 || u >= maxU) return;
     const int T = xlen[b];
     const int U = ylen[b] + 1;
     const int* labels = mlabels + b * (maxU - 1); // mb label start point
@@ -79,8 +80,11 @@ __global__ void compute_alphas_kernel_naive(const Tp* const acts, const Tp* cons
 template<typename Tp>
 __global__ void compute_betas_kernel(const Tp* const acts, const Tp* const denom, Tp* betas, Tp* llBackward, const int* const xlen, const int* const ylen, 
     const int* const mlabels, const int minibatch, const int maxT, const int maxU, const int alphabet_size, const int blank_) {
+
     int b = blockIdx.x; // batch
     int u = threadIdx.x; // label id, u
+        if (b < 0 || b >= minibatch || u < 0 || u >= maxU) return;
+
     const int T = xlen[b];
     const int U = ylen[b] + 1;
     const int* labels = mlabels + b * (maxU - 1);
@@ -122,7 +126,7 @@ __global__ void compute_betas_kernel_naive(const Tp* const acts, const Tp* const
     const int offset = tid * maxT * maxU;
     betas += offset;
     betas[(T-1) * maxU + U-1] = logp(denom, acts, maxT, maxU, alphabet_size, tid, T-1, U-1, blank_);
-
+    
     for (int t = T-1; t >=0; --t) {
         for (int u = U-1; u >= 0; --u) {
             if (u == U-1 && t < T-1)
@@ -152,6 +156,8 @@ __global__ void compute_grad_kernel(Tp* grads, const Tp* const acts, const Tp* c
     int t = bt % maxT;
     int mb = (bt - t) / maxT;
 
+    if (mb >= minibatch || u >= maxU) return;
+    if (mb < 0 || mb >= minibatch || u < 0 || u >= maxU) return;
     const int T = xlen[mb];
     const int U = ylen[mb] + 1;
     const int* labels = mlabels + mb * (maxU - 1);

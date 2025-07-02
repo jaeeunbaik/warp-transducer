@@ -46,6 +46,7 @@ rnntStatus_t compute_rnnt_loss(const float* const activations, //BTUV
                              void *workspace,
                              rnntOptions options) {
 
+
     if (activations == nullptr ||
         flat_labels == nullptr ||
         label_lengths == nullptr ||

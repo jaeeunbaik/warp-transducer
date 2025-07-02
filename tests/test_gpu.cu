@@ -67,6 +67,8 @@ bool small_test() {
     void* rnnt_gpu_workspace;
     cudaMalloc(&rnnt_gpu_workspace, gpu_alloc_bytes);
 
+    printf("[HOST] input_length_gpu=%p, label_length_gpu=%p, label_gpu=%p\n", input_length_gpu, label_length_gpu, label_gpu);
+    fflush(stdout);
     throw_on_error(compute_rnnt_loss(acts_gpu,
                                     NULL,
                                     label_gpu, 
@@ -78,6 +80,23 @@ bool small_test() {
                                     rnnt_gpu_workspace,
                                     options),
                    "Error: compute_rnnt_loss in small_test");
+
+    // 커널 실행 후 에러 체크 (디버깅용)
+    cudaError_t err = cudaDeviceSynchronize();
+    if (err != cudaSuccess) {
+        printf("CUDA ERROR after compute_rnnt_loss: %s\n", cudaGetErrorString(err));
+    }
+
+    // device->host 복사로 값 확인
+    int h_xlen[1];
+    int h_ylen[1];
+    int h_labels[2];
+    cudaMemcpyAsync(h_xlen, input_length_gpu, sizeof(int), cudaMemcpyDeviceToHost, stream);
+    cudaMemcpyAsync(h_ylen, label_length_gpu, sizeof(int), cudaMemcpyDeviceToHost, stream);
+    cudaMemcpyAsync(h_labels, label_gpu, 2*sizeof(int), cudaMemcpyDeviceToHost, stream);
+    cudaStreamSynchronize(stream);
+    printf("[HOST] device xlen[0]=%d, ylen[0]=%d, labels[0]=%d, labels[1]=%d\n", h_xlen[0], h_ylen[0], h_labels[0], h_labels[1]);
+    fflush(stdout);
 
     cudaFree(rnnt_gpu_workspace);
     cudaFree(acts_gpu);
@@ -181,6 +200,12 @@ bool options_test() {
                                     rnnt_gpu_workspace,
                                     options),
                    "Error: compute_rnnt_loss in small_test");
+
+    // 커널 실행 후 에러 체크 (디버깅용)
+    cudaError_t err = cudaDeviceSynchronize();
+    if (err != cudaSuccess) {
+        printf("CUDA ERROR after compute_rnnt_loss: %s\n", cudaGetErrorString(err));
+    }
 
     cudaMemcpyAsync(grads.data(), grads_gpu, grads.size() * sizeof(float), cudaMemcpyDeviceToHost, stream);
 
@@ -286,6 +311,12 @@ bool inf_test() {
                                     rnnt_gpu_workspace,
                                     options),
                    "Error: compute_rnnt_loss in small_test");
+
+    // 커널 실행 후 에러 체크 (디버깅용)
+    cudaError_t err = cudaDeviceSynchronize();
+    if (err != cudaSuccess) {
+        printf("CUDA ERROR after compute_rnnt_loss: %s\n", cudaGetErrorString(err));
+    }
 
     cudaMemcpyAsync(grads.data(), grads_gpu, grads.size() * sizeof(float), cudaMemcpyDeviceToHost, stream);
 
@@ -473,7 +504,10 @@ bool run_tests() {
     return status;
 }
 
-int main(void) {
+int main() {
+    printf("[MAIN] test_gpu main start\n");
+    fflush(stdout);
+
     if (get_warprnnt_version() != 1) {
         std::cerr << "Invalid Warp-transducer version." << std::endl;
         return 1;
